@@ -1,131 +1,221 @@
 // app/page.tsx
-"use client";
+import Image from "next/image";
+import Link from "next/link";
+import { headers } from "next/headers";
 
-import { useEffect, useMemo, useState } from "react";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-} from "recharts";
-
-type Point = { date: string; balance: number };
-type Bill = {
-  id: string;
-  merchant: string;
-  amount: number;
-  nextDate: string;
-  flexible: boolean;
-};
-type Forecast = {
+type CategoryRow = { category: string; total: number; count: number };
+type ForecastResp = {
   start: string;
-  points: Point[];
+  points: { date: string; balance: number }[];
   risks: { from: string; to: string; min: number }[];
-  upcoming: Bill[];
+  upcoming: { id: string; merchant: string; amount: number; nextDate: string; flexible: boolean; category?: string }[];
+  categories: CategoryRow[];
 };
+
+const HORIZON_DEFAULT = 60;
+const LIMIT_DEFAULT = 15;
 
 const fmtCurrency = (n: number) =>
-  n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(n);
 
-export default function Home() {
-  const [data, setData] = useState<Forecast | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+const fmtDate = (ds: string) => {
+  const d = new Date(ds);
+  if (Number.isNaN(d.getTime())) return ds;
+  return d.toISOString().slice(0, 10);
+};
 
-  useEffect(() => {
-    setLoading(true);
-    fetch("/api/forecast")
-      .then((r) => r.json())
-      .then((json) => setData(json))
-      .catch((e) => setErr(String(e)))
-      .finally(() => setLoading(false));
-  }, []);
+export default async function Home({
+  searchParams,
+}: {
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) {
+  const limit = Math.min(100, Number(searchParams?.limit ?? LIMIT_DEFAULT));
+  const horizon = Math.max(7, Math.min(180, Number(searchParams?.horizon ?? HORIZON_DEFAULT)));
+  const selectedCat = String(searchParams?.cat ?? "");
 
-  const minBalance = useMemo(
-    () => (data ? Math.min(...data.points.map((p) => p.balance)) : 0),
-    [data]
-  );
+  const h = headers();
+  const host = (h as any).get("host") ?? "localhost:3000";
+  const proto = process.env.VERCEL || process.env.NODE_ENV === "production" ? "https" : "http";
+  const base = `${proto}://${host}`;
+
+  const res = await fetch(`${base}/api/forecast`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`/api/forecast ${res.status}`);
+  const data = (await res.json()) as ForecastResp;
+
+  const categories = Array.isArray(data.categories) ? data.categories : [];
+  const totalAll = categories.reduce((a, c) => a + (c.total || 0), 0);
+  const sortedCats = [...categories].sort((a, b) => (b.total || 0) - (a.total || 0));
+
+  const now = new Date();
+  const end = new Date(now.getTime() + horizon * 86400000);
+  const upcomingWindow = (data.upcoming || [])
+    .filter((b) => {
+      const d = new Date(b.nextDate);
+      return !Number.isNaN(d.getTime()) && d >= now && d <= end;
+    })
+    .sort((a, b) => (a.nextDate < b.nextDate ? -1 : 1));
+
+  const baseBills = upcomingWindow.length
+    ? upcomingWindow
+    : [...(data.upcoming || [])].sort((a, b) => (a.nextDate < b.nextDate ? -1 : 1));
+
+  const filtered = selectedCat
+    ? baseBills.filter((b) => (b.category || "").toLowerCase() === selectedCat.toLowerCase())
+    : baseBills;
+
+  const billsToShow = filtered.slice(0, limit);
+  const risk = data.risks?.[0];
+
+  const totalBillsWindow = billsToShow.reduce((a, b) => a + (b.amount || 0), 0);
+  const kpi = [
+    { label: "Current balance", value: fmtCurrency(data.points?.[0]?.balance ?? 0) },
+    { label: `Next ${horizon}d bills`, value: fmtCurrency(totalBillsWindow) },
+    { label: "Projected min", value: risk ? `${fmtCurrency(risk.min)} on ${risk.from}` : "—" },
+    { label: "Bills in window", value: String(billsToShow.length) },
+  ];
+
+  const horizons = [30, 60, 90];
 
   return (
-    <main className="min-h-screen p-6 sm:p-10 max-w-6xl mx-auto space-y-8">
-      <header className="flex items-baseline justify-between gap-4">
-        <h1 className="text-2xl sm:text-3xl font-semibold">FlowSight</h1>
-        <p className="text-sm opacity-70">30-day cash flow forecast</p>
+    <div className="min-h-screen text-white bg-black">
+      <header className="max-w-5xl mx-auto px-6 pt-10 pb-4 flex items-center gap-3">
+        <Image className="dark:invert" src="/next.svg" alt="Next.js" width={70} height={16} />
+        <h1 className="text-2xl font-semibold">FlowSight</h1>
       </header>
 
-      {loading && <p>Loading…</p>}
-      {err && (
-        <div className="rounded-md border border-red-500/40 bg-red-500/10 p-4 text-sm">
-          <b>Error:</b> {err}
-        </div>
-      )}
+      <main className="max-w-5xl mx-auto px-6 pb-24 space-y-10">
+        <section className="flex items-center justify-between">
+          <h2 className="text-lg text-neutral-300">Spending by category</h2>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-neutral-400">Horizon:</span>
+            {horizons.map((h) => (
+              <Link
+                key={h}
+                href={`/?horizon=${h}&limit=${limit}${selectedCat ? `&cat=${encodeURIComponent(selectedCat)}` : ""}`}
+                className={`px-2 py-1 rounded-md border ${h === horizon ? "border-white/40 bg-white/10" : "border-white/10 hover:bg-white/5"}`}
+              >
+                {h}d
+              </Link>
+            ))}
+          </div>
+        </section>
 
-      {data && (
-        <>
-          {/* Chart */}
-          <section className="rounded-xl border border-zinc-200/10 p-4 sm:p-6">
-            <div className="h-64 sm:h-80 w-full">
-              <ResponsiveContainer>
-                <AreaChart data={data.points}>
-                  <XAxis dataKey="date" hide />
-                  <YAxis
-                    tickFormatter={(v) => fmtCurrency(Number(v))}
-                    width={70}
-                    domain={["dataMin", "dataMax"]}
-                  />
-                  <Tooltip
-                    formatter={(value) => [fmtCurrency(Number(value)), "Balance"]}
-                    labelFormatter={(l) => `Date: ${l}`}
-                  />
-                  {/* zero line */}
-                  <ReferenceLine y={0} strokeOpacity={0.4} />
-                  <Area
-                    type="monotone"
-                    dataKey="balance"
-                    stroke="#64748b"
-                    fill="#64748b"
-                    fillOpacity={0.2}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {kpi.map((k) => (
+            <div key={k.label} className="rounded-xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs text-neutral-400">{k.label}</div>
+              <div className="mt-1 text-lg font-semibold tabular-nums">{k.value}</div>
             </div>
+          ))}
+        </section>
 
-            {data.risks.length > 0 && (
-              <p className="mt-3 text-sm text-red-600">
-                Risk window: {data.risks[0].from} → {data.risks[0].to} (min{" "}
-                {fmtCurrency(data.risks[0].min)})
-              </p>
+        <section>
+          <div className="grid md:grid-cols-2 gap-4">
+            {sortedCats.map((c) => {
+              const pct = totalAll > 0 ? Math.max(0.1, (c.total / totalAll) * 100) : 0;
+              return (
+                <div key={c.category} className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <div className="flex items-center justify-between text-sm text-neutral-300 mb-2">
+                    <span className="capitalize">{c.category}</span>
+                    <span className="tabular-nums">{fmtCurrency(c.total)}</span>
+                  </div>
+                  <div className="h-2 w-full rounded bg-white/10 overflow-hidden">
+                    <div className="h-2 bg-white/70" style={{ width: `${Math.min(100, pct)}%` }} />
+                  </div>
+                  <div className="text-[12px] text-neutral-400 mt-1">
+                    {pct.toFixed(1)}% of total • {c.count} bill{c.count === 1 ? "" : "s"}
+                  </div>
+                </div>
+              );
+            })}
+            {!sortedCats.length && (
+              <div className="text-neutral-400 text-sm col-span-2">No categorized spending yet. Add bills or refresh.</div>
             )}
-          </section>
+          </div>
+        </section>
 
-          {/* Upcoming bills */}
-          <section className="rounded-xl border border-zinc-200/10 p-4 sm:p-6">
-            <h2 className="text-lg font-medium mb-3">Upcoming bills</h2>
-            {data.upcoming.length === 0 ? (
-              <p className="text-sm opacity-70">No bills detected.</p>
-            ) : (
-              <ul className="divide-y divide-zinc-200/10">
-                {data.upcoming.slice(0, 12).map((b) => (
-                  <li key={b.id} className="py-2.5 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate">{b.merchant}</p>
-                      <p className="text-xs opacity-70">{b.nextDate}</p>
+        {risk && (
+          <section className="text-sm text-red-400">
+            Risk window: {risk.from} → {risk.to} (min {fmtCurrency(risk.min)})
+          </section>
+        )}
+
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg text-neutral-300">Upcoming bills</h2>
+            <div className="flex flex-wrap gap-2">
+              {sortedCats.slice(0, 10).map((c) => (
+                <Link
+                  key={c.category}
+                  href={`/?cat=${encodeURIComponent(c.category)}&horizon=${horizon}&limit=${limit}`}
+                  className={`px-2 py-1 rounded-full border text-xs ${
+                    selectedCat === c.category ? "border-white/40 bg-white/10" : "border-white/10 hover:bg-white/5"
+                  }`}
+                >
+                  {c.category}
+                </Link>
+              ))}
+              {selectedCat && (
+                <Link
+                  href={`/?horizon=${horizon}&limit=${limit}`}
+                  className="px-2 py-1 rounded-full border border-white/10 text-xs hover:bg-white/5"
+                >
+                  Clear
+                </Link>
+              )}
+            </div>
+          </div>
+
+          <div className="divide-y divide-white/5 rounded-xl border border-white/10 overflow-hidden">
+            {billsToShow.map((b) => {
+              const inRisk =
+                risk &&
+                new Date(b.nextDate) >= new Date(risk.from) &&
+                new Date(b.nextDate) <= new Date(risk.to);
+              return (
+                <div key={`${b.id}-${b.nextDate}`} className="p-4 flex items-center justify-between bg-white/0 hover:bg-white/[0.04]">
+                  <div className="min-w-0">
+                    <div className="font-medium truncate flex items-center gap-2">
+                      {b.merchant}
+                      {inRisk && <span className="text-[10px] text-red-400">⚠ may overdraft</span>}
                     </div>
-                    <div className="text-right font-medium">{fmtCurrency(b.amount)}</div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </>
-      )}
+                    <div className="text-[12px] text-neutral-400">{fmtDate(b.nextDate)}</div>
+                    {b.category && (
+                      <span className="inline-block mt-1 text-[11px] px-2 py-0.5 rounded-full bg-white/10 text-neutral-300">
+                        {b.category}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-right font-medium tabular-nums">{fmtCurrency(b.amount)}</div>
+                </div>
+              );
+            })}
+            {!billsToShow.length && <div className="p-6 text-sm text-neutral-400">No bills to show.</div>}
+          </div>
 
-      <footer className="pt-2 text-xs opacity-60">
-        Data from Nessie (Capital One hackathon API). Demo app for HackGT.
-      </footer>
-    </main>
+          <div className="text-[12px] text-neutral-500">
+            Showing {billsToShow.length} of {filtered.length} filtered bills
+            {selectedCat ? ` in “${selectedCat}”` : ""}. Window: next {horizon} days.
+          </div>
+
+          {billsToShow.length < filtered.length && (
+            <div className="pt-2">
+              <Link
+                href={`/?limit=${Math.min(100, billsToShow.length + 15)}&horizon=${horizon}${
+                  selectedCat ? `&cat=${encodeURIComponent(selectedCat)}` : ""
+                }`}
+                className="inline-flex items-center px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/15 border border-white/10 text-sm"
+              >
+                Show more
+              </Link>
+            </div>
+          )}
+        </section>
+
+        <footer className="text-[12px] text-neutral-500 pt-4">
+          Data from Nessie (Capital One hackathon API). Demo app for HackGT.
+        </footer>
+      </main>
+    </div>
   );
 }

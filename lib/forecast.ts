@@ -1,10 +1,12 @@
+// lib/forecast.ts
 export type Point = { date: string; balance: number };
 export type RiskWin = { from: string; to: string; min: number };
 
-export function buildForecast(
+// Make it generic: T must have amount + nextDate; it can have more fields (e.g. category)
+export function buildForecast<T extends { amount: number; nextDate: string }>(
   currentBalance: number,
   dailySpendAvg: number,
-  upcomingBills: { amount: number; nextDate: string }[],
+  upcomingBills: T[],
   days = 30
 ) {
   const start = new Date();
@@ -27,15 +29,22 @@ export function buildForecast(
   }
 
   // risk window if balance < 0 at any point
-  const dips = points.filter(p => p.balance < 0);
+  const dips = points.filter((p) => p.balance < 0);
   const risks: RiskWin[] = dips.length
-    ? [{ from: dips[0].date, to: dips[dips.length - 1].date, min: Math.min(...points.map(p => p.balance)) }]
+    ? [
+        {
+          from: dips[0].date,
+          to: dips[dips.length - 1].date,
+          min: Math.min(...points.map((p) => p.balance)),
+        },
+      ]
     : [];
 
   return {
     start: start.toISOString().slice(0, 10),
     points,
     risks,
-    upcoming: upcomingBills
+    // keep the same objects you passed in (including category)
+    upcoming: upcomingBills,
   };
 }
