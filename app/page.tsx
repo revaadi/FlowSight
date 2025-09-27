@@ -1,103 +1,131 @@
-import Image from "next/image";
+// app/page.tsx
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+} from "recharts";
+
+type Point = { date: string; balance: number };
+type Bill = {
+  id: string;
+  merchant: string;
+  amount: number;
+  nextDate: string;
+  flexible: boolean;
+};
+type Forecast = {
+  start: string;
+  points: Point[];
+  risks: { from: string; to: string; min: number }[];
+  upcoming: Bill[];
+};
+
+const fmtCurrency = (n: number) =>
+  n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [data, setData] = useState<Forecast | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    setLoading(true);
+    fetch("/api/forecast")
+      .then((r) => r.json())
+      .then((json) => setData(json))
+      .catch((e) => setErr(String(e)))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const minBalance = useMemo(
+    () => (data ? Math.min(...data.points.map((p) => p.balance)) : 0),
+    [data]
+  );
+
+  return (
+    <main className="min-h-screen p-6 sm:p-10 max-w-6xl mx-auto space-y-8">
+      <header className="flex items-baseline justify-between gap-4">
+        <h1 className="text-2xl sm:text-3xl font-semibold">FlowSight</h1>
+        <p className="text-sm opacity-70">30-day cash flow forecast</p>
+      </header>
+
+      {loading && <p>Loading…</p>}
+      {err && (
+        <div className="rounded-md border border-red-500/40 bg-red-500/10 p-4 text-sm">
+          <b>Error:</b> {err}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+      )}
+
+      {data && (
+        <>
+          {/* Chart */}
+          <section className="rounded-xl border border-zinc-200/10 p-4 sm:p-6">
+            <div className="h-64 sm:h-80 w-full">
+              <ResponsiveContainer>
+                <AreaChart data={data.points}>
+                  <XAxis dataKey="date" hide />
+                  <YAxis
+                    tickFormatter={(v) => fmtCurrency(Number(v))}
+                    width={70}
+                    domain={["dataMin", "dataMax"]}
+                  />
+                  <Tooltip
+                    formatter={(value) => [fmtCurrency(Number(value)), "Balance"]}
+                    labelFormatter={(l) => `Date: ${l}`}
+                  />
+                  {/* zero line */}
+                  <ReferenceLine y={0} strokeOpacity={0.4} />
+                  <Area
+                    type="monotone"
+                    dataKey="balance"
+                    stroke="#64748b"
+                    fill="#64748b"
+                    fillOpacity={0.2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {data.risks.length > 0 && (
+              <p className="mt-3 text-sm text-red-600">
+                Risk window: {data.risks[0].from} → {data.risks[0].to} (min{" "}
+                {fmtCurrency(data.risks[0].min)})
+              </p>
+            )}
+          </section>
+
+          {/* Upcoming bills */}
+          <section className="rounded-xl border border-zinc-200/10 p-4 sm:p-6">
+            <h2 className="text-lg font-medium mb-3">Upcoming bills</h2>
+            {data.upcoming.length === 0 ? (
+              <p className="text-sm opacity-70">No bills detected.</p>
+            ) : (
+              <ul className="divide-y divide-zinc-200/10">
+                {data.upcoming.slice(0, 12).map((b) => (
+                  <li key={b.id} className="py-2.5 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate">{b.merchant}</p>
+                      <p className="text-xs opacity-70">{b.nextDate}</p>
+                    </div>
+                    <div className="text-right font-medium">{fmtCurrency(b.amount)}</div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
+
+      <footer className="pt-2 text-xs opacity-60">
+        Data from Nessie (Capital One hackathon API). Demo app for HackGT.
       </footer>
-    </div>
+    </main>
   );
 }
