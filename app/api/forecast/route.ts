@@ -1,16 +1,11 @@
 // app/api/forecast/route.ts
-
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { NextResponse } from "next/server";
-import {
-  listCustomers,
-  listAccounts,
-  listPurchases,
-  listBills,
-} from "@/lib/nessie";
+import { listCustomers, listAccounts, listPurchases, listBills } from "@/lib/nessie";
 import { buildForecast } from "@/lib/forecast";
+import { categorize, rollupCategories } from "@/lib/categories"; // ← NEW
 
 // Unwrap helper in case any endpoint returns { results: [...] }
 const toArray = (x: any) =>
@@ -23,6 +18,7 @@ const toArray = (x: any) =>
  * - Estimates daily spend from recent purchases
  * - Pulls bills
  * - Returns a 30-day balance forecast with risk window
+ * - ALSO returns category rollups
  */
 export async function GET() {
   try {
@@ -99,9 +95,21 @@ export async function GET() {
         ),
       }));
 
-    // 6) Build forecast
-    const forecast = buildForecast(currentBalance, dailySpendAvg, upcoming);
-    return NextResponse.json(forecast);
+    // 6) NEW: tag with category + category rollup
+    const upcomingWithCategory = upcoming.map((b: any)  => ({
+      ...b,
+      category: categorize(b.merchant),
+    }));
+    const categories = rollupCategories(upcomingWithCategory);
+
+    // 7) Build forecast using categorized bills
+    const forecast = buildForecast(currentBalance, dailySpendAvg, upcomingWithCategory);
+
+    // 8) Include categories in the response
+    return NextResponse.json({
+      ...forecast,
+      categories,
+    });
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message ?? "Nessie error" },
