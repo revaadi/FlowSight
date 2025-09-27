@@ -1,50 +1,39 @@
-// lib/forecast.ts
-export type Point = { date: string; balance: number };
-export type RiskWin = { from: string; to: string; min: number };
+// /lib/forecast.ts
 
-// Make it generic: T must have amount + nextDate; it can have more fields (e.g. category)
-export function buildForecast<T extends { amount: number; nextDate: string }>(
-  currentBalance: number,
-  dailySpendAvg: number,
-  upcomingBills: T[],
-  days = 30
-) {
-  const start = new Date();
-  const points: Point[] = [];
-  let bal = currentBalance;
+interface Purchase {
+  amount: number
+  purchase_date: string // format: YYYY-MM-DD
+}
 
-  for (let d = 0; d < days; d++) {
-    const date = new Date(start.getTime() + d * 86400000);
-    const ds = date.toISOString().slice(0, 10);
+export function forecastNext30Days(balance: number, purchases: Purchase[]) {
+  const forecast: { date: string; balance: number }[] = []
 
-    // baseline drift
-    bal -= dailySpendAvg;
+  const today = new Date()
+  const purchaseMap = new Map<string, number>()
 
-    // subtract any bills due that day
-    for (const b of upcomingBills) {
-      if (b.nextDate === ds) bal -= b.amount;
-    }
-
-    points.push({ date: ds, balance: Number(bal.toFixed(2)) });
+  // Group purchases by date
+  for (const p of purchases) {
+    if (!p.purchase_date) continue
+    const amt = purchaseMap.get(p.purchase_date) || 0
+    purchaseMap.set(p.purchase_date, amt + p.amount)
   }
 
-  // risk window if balance < 0 at any point
-  const dips = points.filter((p) => p.balance < 0);
-  const risks: RiskWin[] = dips.length
-    ? [
-        {
-          from: dips[0].date,
-          to: dips[dips.length - 1].date,
-          min: Math.min(...points.map((p) => p.balance)),
-        },
-      ]
-    : [];
+  // Build forecast for next 30 days
+  for (let i = 0; i < 30; i++) {
+    const date = new Date(today)
+    date.setDate(date.getDate() + i)
 
-  return {
-    start: start.toISOString().slice(0, 10),
-    points,
-    risks,
-    // keep the same objects you passed in (including category)
-    upcoming: upcomingBills,
-  };
+    const dateStr = date.toISOString().slice(0, 10)
+    const dailySpending = purchaseMap.get(dateStr) || 0
+
+    if (i === 0) {
+      balance -= dailySpending
+    } else {
+      balance -= dailySpending
+    }
+
+    forecast.push({ date: dateStr, balance: Math.max(0, +balance.toFixed(2)) })
+  }
+
+  return forecast
 }
