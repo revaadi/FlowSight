@@ -1,47 +1,62 @@
 {
   "accounts": [
-    {
-      "id": "acc_1",
-      "balance": 5000,
-      "customerId": "cust_1"
-    },
-    {
-      "id": "acc_2",
-      "balance": 3200,
-      "customerId": "cust_2"
-    }
+    { "id": "acc_1", "balance": 5000, "customerId": "cust_1" },
+    { "id": "acc_2", "balance": 3200, "customerId": "cust_2" },
+    { "id": "acc_3", "balance": 1800, "customerId": "cust_3" }
   ],
   "purchases": [
+
     { "accountId": "acc_1", "amount": 1200, "purchase_date": "2025-10-01", "description": "Rent", "isBill": true, "type": "expense" },
-    { "accountId": "acc_1", "amount": 15, "purchase_date": "2025-10-01", "description": "Netflix Subscription", "isBill": true, "type": "expense" },
-    { "accountId": "acc_1", "amount": 90, "purchase_date": "2025-10-03", "description": "Utilities", "isBill": true, "type": "expense" },
-    { "accountId": "acc_1", "amount": 50, "purchase_date": "2025-09-28", "description": "Groceries", "type": "expense" },
-    { "accountId": "acc_1", "amount": 60, "purchase_date": "2025-10-05", "description": "Groceries", "type": "expense" },
-    { "accountId": "acc_1", "amount": 55, "purchase_date": "2025-10-12", "description": "Groceries", "type": "expense" },
-    { "accountId": "acc_1", "amount": 70, "purchase_date": "2025-10-19", "description": "Groceries", "type": "expense" },
-    { "accountId": "acc_1", "amount": 20, "purchase_date": "2025-10-07", "description": "Uber Ride", "type": "expense" },
-    { "accountId": "acc_1", "amount": 45, "purchase_date": "2025-10-10", "description": "Restaurant", "type": "expense" },
-    { "accountId": "acc_1", "amount": 35, "purchase_date": "2025-10-15", "description": "Movie Night", "type": "expense" },
-    { "accountId": "acc_1", "amount": 25, "purchase_date": "2025-10-22", "description": "Coffee Shops", "type": "expense" },
-    { "accountId": "acc_1", "amount": 150, "purchase_date": "2025-10-25", "description": "Shopping", "type": "expense" },
+    { "accountId": "acc_1", "amount": 15,   "purchase_date": "2025-10-01", "description": "Netflix Subscription", "isBill": true, "type": "expense" },
+    { "accountId": "acc_1", "amount": 90,   "purchase_date": "2025-10-03", "description": "Utilities", "isBill": true, "type": "expense" },
+    { "accountId": "acc_1", "amount": 50,   "purchase_date": "2025-09-28", "description": "Groceries", "type": "expense" },
+    { "accountId": "acc_1", "amount": 60,   "purchase_date": "2025-10-05", "description": "Groceries", "type": "expense" },
+    { "accountId": "acc_1", "amount": 55,   "purchase_date": "2025-10-12", "description": "Groceries", "type": "expense" },
+    { "accountId": "acc_1", "amount": 70,   "purchase_date": "2025-10-19", "description": "Groceries", "type": "expense" },
+    { "accountId": "acc_1", "amount": 20,   "purchase_date": "2025-10-07", "description": "Uber Ride", "type": "expense" },
+    { "accountId": "acc_1", "amount": 45,   "purchase_date": "2025-10-10", "description": "Restaurant", "type": "expense" },
+    { "accountId": "acc_1", "amount": 35,   "purchase_date": "2025-10-15", "description": "Movie Night", "type": "expense" },
+    { "accountId": "acc_1", "amount": 25,   "purchase_date": "2025-10-22", "description": "Coffee Shops", "type": "expense" },
+    { "accountId": "acc_1", "amount": 150,  "purchase_date": "2025-10-25", "description": "Shopping", "type": "expense" },
 
     { "accountId": "acc_1", "amount": 2500, "purchase_date": "2025-10-01", "description": "Paycheck", "type": "income" },
     { "accountId": "acc_1", "amount": 2500, "purchase_date": "2025-10-15", "description": "Paycheck", "type": "income" },
 
-    { "accountId": "acc_2", "amount": 900, "purchase_date": "2025-10-01", "description": "Rent", "isBill": true, "type": "expense" },
-    { "accountId": "acc_2", "amount": 12, "purchase_date": "2025-10-01", "description": "Spotify", "isBill": true, "type": "expense" },
-    { "accountId": "acc_2", "amount": 85, "purchase_date": "2025-10-04", "description": "Utilities", "isBill": true, "type": "expense" },
-    { "accountId": "acc_2", "amount": 45, "purchase_date": "2025-09-29", "description": "Groceries", "type": "expense" },
-    { "accountId": "acc_2", "amount": 55, "purchase_date": "2025-10-06", "description": "Groceries", "type": "expense" },
-    { "accountId": "acc_2", "amount": 50, "purchase_date": "2025-10-13", "description": "Groceries", "type": "expense" },
-    { "accountId": "acc_2", "amount": 60, "purchase_date": "2025-10-20", "description": "Groceries", "type": "expense" },
-    { "accountId": "acc_2", "amount": 18, "purchase_date": "2025-10-08", "description": "Bus Pass", "isBill": true, "type": "expense" },
-    { "accountId": "acc_2", "amount": 40, "purchase_date": "2025-10-11", "description": "Dining Out", "type": "expense" },
-    { "accountId": "acc_2", "amount": 30, "purchase_date": "2025-10-16", "description": "Bowling Night", "type": "expense" },
-    { "accountId": "acc_2", "amount": 20, "purchase_date": "2025-10-21", "description": "Fast Food", "type": "expense" },
-    { "accountId": "acc_2", "amount": 100, "purchase_date": "2025-10-26", "description": "Clothing Store", "type": "expense" },
+
+    { "accountId": "acc_2", "amount": 900,  "purchase_date": "2025-10-01", "description": "Rent", "isBill": true, "type": "expense" },
+    { "accountId": "acc_2", "amount": 12,   "purchase_date": "2025-10-01", "description": "Spotify", "isBill": true, "type": "expense" },
+    { "accountId": "acc_2", "amount": 85,   "purchase_date": "2025-10-04", "description": "Utilities", "isBill": true, "type": "expense" },
+    { "accountId": "acc_2", "amount": 45,   "purchase_date": "2025-09-29", "description": "Groceries", "type": "expense" },
+    { "accountId": "acc_2", "amount": 55,   "purchase_date": "2025-10-06", "description": "Groceries", "type": "expense" },
+    { "accountId": "acc_2", "amount": 50,   "purchase_date": "2025-10-13", "description": "Groceries", "type": "expense" },
+    { "accountId": "acc_2", "amount": 60,   "purchase_date": "2025-10-20", "description": "Groceries", "type": "expense" },
+    { "accountId": "acc_2", "amount": 18,   "purchase_date": "2025-10-08", "description": "Bus Pass", "isBill": true, "type": "expense" },
+    { "accountId": "acc_2", "amount": 40,   "purchase_date": "2025-10-11", "description": "Dining Out", "type": "expense" },
+    { "accountId": "acc_2", "amount": 30,   "purchase_date": "2025-10-16", "description": "Bowling Night", "type": "expense" },
+    { "accountId": "acc_2", "amount": 20,   "purchase_date": "2025-10-21", "description": "Fast Food", "type": "expense" },
+    { "accountId": "acc_2", "amount": 100,  "purchase_date": "2025-10-26", "description": "Clothing Store", "type": "expense" },
 
     { "accountId": "acc_2", "amount": 2000, "purchase_date": "2025-10-01", "description": "Paycheck", "type": "income" },
-    { "accountId": "acc_2", "amount": 2000, "purchase_date": "2025-10-15", "description": "Paycheck", "type": "income" }
+    { "accountId": "acc_2", "amount": 2000, "purchase_date": "2025-10-15", "description": "Paycheck", "type": "income" },
+
+
+    { "accountId": "acc_3", "amount": 1600, "purchase_date": "2025-10-01", "description": "Rent", "isBill": true, "type": "expense" },
+    { "accountId": "acc_3", "amount": 95,   "purchase_date": "2025-10-03", "description": "Utilities", "isBill": true, "type": "expense" },
+    { "accountId": "acc_3", "amount": 40,   "purchase_date": "2025-10-01", "description": "Phone Bill", "isBill": true, "type": "expense" },
+    { "accountId": "acc_3", "amount": 19,   "purchase_date": "2025-10-01", "description": "Music Subscription", "isBill": true, "type": "expense" },
+
+    { "accountId": "acc_3", "amount": 72,   "purchase_date": "2025-09-29", "description": "Groceries", "type": "expense" },
+    { "accountId": "acc_3", "amount": 58,   "purchase_date": "2025-10-05", "description": "Groceries", "type": "expense" },
+    { "accountId": "acc_3", "amount": 64,   "purchase_date": "2025-10-12", "description": "Groceries", "type": "expense" },
+    { "accountId": "acc_3", "amount": 52,   "purchase_date": "2025-10-19", "description": "Groceries", "type": "expense" },
+    { "accountId": "acc_3", "amount": 28,   "purchase_date": "2025-10-07", "description": "Bus/Transit", "isBill": true, "type": "expense" },
+    { "accountId": "acc_3", "amount": 85,   "purchase_date": "2025-10-10", "description": "Dining Out", "type": "expense" },
+    { "accountId": "acc_3", "amount": 120,  "purchase_date": "2025-10-15", "description": "Shopping", "type": "expense" },
+    { "accountId": "acc_3", "amount": 60,   "purchase_date": "2025-10-17", "description": "Gas", "type": "expense" },
+    { "accountId": "acc_3", "amount": 210,  "purchase_date": "2025-10-22", "description": "Car Repair", "type": "expense" },
+    { "accountId": "acc_3", "amount": 45,   "purchase_date": "2025-10-25", "description": "Streaming Bundle", "isBill": true, "type": "expense" },
+
+    { "accountId": "acc_3", "amount": 1200, "purchase_date": "2025-10-01", "description": "Paycheck", "type": "income" },
+    { "accountId": "acc_3", "amount": 1100, "purchase_date": "2025-10-15", "description": "Paycheck", "type": "income" }
   ]
 }
