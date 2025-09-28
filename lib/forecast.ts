@@ -1,39 +1,55 @@
 // /lib/forecast.ts
+import { categorize } from "@/lib/categories";
 
 interface Purchase {
-  amount: number
-  purchase_date: string // format: YYYY-MM-DD
+  amount: number;
+  purchase_date: string; // format: YYYY-MM-DD
+  type?: "income" | "expense"; // 👈 add support for incomes
+  description: string;
 }
 
 export function forecastNext30Days(balance: number, purchases: Purchase[]) {
-  const forecast: { date: string; balance: number }[] = []
+  const forecast: { date: string; balance: number }[] = [];
+  const today = new Date();
+  const purchaseMap = new Map<string, number>();
 
-  const today = new Date()
-  const purchaseMap = new Map<string, number>()
-
-  // Group purchases by date
+  // Group purchases by date (income vs expense aware)
   for (const p of purchases) {
-    if (!p.purchase_date) continue
-    const amt = purchaseMap.get(p.purchase_date) || 0
-    purchaseMap.set(p.purchase_date, amt + p.amount)
+    if (!p.purchase_date) continue;
+    const amt = purchaseMap.get(p.purchase_date) || 0;
+
+    if (p.type === "income") {
+      // income should increase balance → store as negative
+      purchaseMap.set(p.purchase_date, amt - p.amount);
+    } else {
+      // expense should decrease balance → store as positive
+      purchaseMap.set(p.purchase_date, amt + p.amount);
+    }
   }
 
   // Build forecast for next 30 days
   for (let i = 0; i < 30; i++) {
-    const date = new Date(today)
-    date.setDate(date.getDate() + i)
+    const date = new Date(today);
+    date.setDate(date.getDate() + i);
 
-    const dateStr = date.toISOString().slice(0, 10)
-    const dailySpending = purchaseMap.get(dateStr) || 0
+    const dateStr = date.toISOString().slice(0, 10);
+    const netChange = purchaseMap.get(dateStr) || 0;
 
-    if (i === 0) {
-      balance -= dailySpending
-    } else {
-      balance -= dailySpending
-    }
-
-    forecast.push({ date: dateStr, balance: Math.max(0, +balance.toFixed(2)) })
+    balance -= netChange; // subtracting a negative adds income
+    forecast.push({ date: dateStr, balance: Math.max(0, +balance.toFixed(2)) });
   }
 
-  return forecast
+  return forecast;
+}
+
+export function groupByCategory(purchases: Purchase[]) {
+  const totals: Record<string, number> = {};
+  for (const p of purchases) {
+    const category = categorize(p.description);
+    totals[category] = (totals[category] || 0) + p.amount;
+  }
+  return Object.entries(totals).map(([category, total]) => ({
+    category,
+    total,
+  }));
 }
