@@ -1,73 +1,42 @@
-// /app/api/forecast/route.ts
+// app/api/forecast/route.ts
+import { NextRequest, NextResponse } from 'next/server'
+import rawData from '@/lib/sampleData.json'
+import { buildForecast, summarize, type Purchase } from '@/lib/forecast'
+import { categoriesFromPurchases } from '@/lib/categories'
 
-import { NextRequest, NextResponse } from "next/server";
-import rawData from "@/lib/sampleData.json";
-import { forecastNext30Days } from "@/lib/forecast";
-import { groupByCategory } from "@/lib/forecast";
+type Account = { id: string; balance: number; customerId: string }
+type SampleData = { accounts: Account[]; purchases: Purchase[] }
 
-// Define types for accounts and purchases
-interface Account {
-  id: string;
-  balance: number;
-  customerId: string;
-}
-
-interface Purchase {
-  accountId: string;
-  amount: number;
-  purchase_date: string;
-  description: string;
-  isBill?: boolean;
-  type?: "income" | "expense";
-}
-
-interface SampleData {
-  accounts: Account[];
-  purchases: Purchase[];
-}
-
-// Tell TS what rawData really is
-const data: SampleData = rawData as SampleData;
+// Tell TS what the JSON looks like
+const data = rawData as SampleData
 
 export async function POST(req: NextRequest) {
   try {
-    const { accountId } = await req.json();
+    const body = (await req.json()) as { accountId?: string }
+    const accountId = body?.accountId || 'acc_1'
 
-    // Find the account in local JSON
-    const account = data.accounts.find((acc) => acc.id === accountId);
+    // Find account
+    const account = data.accounts.find(a => a.id === accountId)
     if (!account) {
-      return NextResponse.json(
-        { error: "Account not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Account not found' }, { status: 404 })
     }
 
-    const balance = account.balance;
+    // Filter this account’s purchases
+    const purchases = data.purchases.filter(p => p.accountId === accountId)
 
-    // Filter purchases for this account
-    const accountPurchases = data.purchases.filter(
-      (p) => p.accountId === accountId
-    );
-
-    const forecast = forecastNext30Days(balance, accountPurchases);
-    const categories = groupByCategory(accountPurchases);
     const today = new Date().toISOString().slice(0, 10)
-    const upcomingBills = accountPurchases.filter(
-    (p) => p.isBill && p.purchase_date >= today
-    )
-    const inflows = accountPurchases.filter(p => p.type === "income").reduce((a,b) => a + b.amount, 0);
-    const outflows = accountPurchases.filter(p => !p.type || p.type === "expense").reduce((a,b) => a + b.amount, 0);
-    const summary = {
-      start: account.balance,
-      inflows,
-      outflows,
-      end: forecast[forecast.length - 1]?.balance || account.balance
-    };
 
+    // Build pieces with your new helpers
+    const forecast = buildForecast(account.balance, purchases, today, 30)
+    const categories = categoriesFromPurchases(purchases)
+    const upcomingBills = purchases
+      .filter(p => p.isBill && p.purchase_date >= today)
+      .sort((a, b) => a.purchase_date.localeCompare(b.purchase_date))
+    const summary = summarize(purchases, account.balance, forecast)
 
-   return NextResponse.json({ forecast, categories, upcomingBills, summary });;
-  } catch (err: any) {
-    console.error("Forecast failed:", err);
-    return NextResponse.json({ error: "Forecast failed" }, { status: 500 });
+    return NextResponse.json({ forecast, categories, upcomingBills, summary })
+  } catch (err) {
+    console.error('Forecast failed:', err)
+    return NextResponse.json({ error: 'Forecast failed' }, { status: 500 })
   }
 }

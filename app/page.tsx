@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 
 export default function Dashboard() {
   const [forecast, setForecast] = useState<any[]>([])
@@ -13,26 +13,78 @@ export default function Dashboard() {
 
   const isEmpty = !loading && !error && !summary && forecast.length === 0
 
+  // --- basic bill actions ---
   const handleDelayBill = (bill: any) => {
-    const newDate = new Date(bill.purchase_date)
-    newDate.setDate(newDate.getDate() + 7)
-    const updatedBill = { ...bill, purchase_date: newDate.toISOString().slice(0, 10) }
-    const newBills = upcomingBills.map(b => (b === bill ? updatedBill : b))
-    setUpcomingBills(newBills)
+    setUpcomingBills(prev => {
+      const next = prev.map(b => {
+        if (b === bill) {
+          const d = new Date(b.purchase_date)
+          d.setDate(d.getDate() + 7)
+          return { ...b, purchase_date: d.toISOString().slice(0, 10) }
+        }
+        return b
+      })
+      return next
+    })
   }
 
   const handleSplitBill = (bill: any) => {
-    const half = bill.amount / 2
-    const date1 = bill.purchase_date
-    const newDate = new Date(bill.purchase_date)
-    newDate.setDate(newDate.getDate() + 7)
-    const date2 = newDate.toISOString().slice(0, 10)
-    const splitBills = [
-      { ...bill, amount: half, purchase_date: date1 },
-      { ...bill, amount: half, purchase_date: date2 },
-    ]
-    const newBills = upcomingBills.filter(b => b !== bill).concat(splitBills)
-    setUpcomingBills(newBills)
+    setUpcomingBills(prev => {
+      const half = bill.amount / 2
+      const d = new Date(bill.purchase_date)
+      d.setDate(d.getDate() + 7)
+      const later = d.toISOString().slice(0, 10)
+      const without = prev.filter(b => b !== bill)
+      return without.concat(
+        { ...bill, amount: half },
+        { ...bill, amount: half, purchase_date: later }
+      )
+    })
+  }
+
+  // --- idempotent “Stay Positive Plan” used by AI coach and header button ---
+  const prevBillsRef = useRef<any[] | null>(null)
+  function applyStayPositivePlan() {
+    setUpcomingBills(prev => {
+      prevBillsRef.current = prev
+      const bills = [...prev].sort((a, b) => a.purchase_date.localeCompare(b.purchase_date))
+
+      // 1) Delay earliest bill once
+      if (bills[0] && !(bills[0] as any)._delayedByPlan) {
+        const d = new Date(bills[0].purchase_date)
+        d.setDate(d.getDate() + 7)
+        bills[0] = { ...bills[0], purchase_date: d.toISOString().slice(0, 10) } as any
+        ;(bills[0] as any)._delayedByPlan = true
+      }
+
+      // 2) Split largest bill only if not already split into halves
+      if (bills.length) {
+        let li = 0
+        for (let i = 1; i < bills.length; i++) {
+          if (bills[i].amount > bills[li].amount) li = i
+        }
+        const largest = bills[li]
+        const half = largest.amount / 2
+        const sameDesc = (b: any) => b.description === largest.description
+        const halves = bills.filter(b => sameDesc(b) && b.amount === half)
+        if (halves.length < 2) {
+          bills.splice(li, 1) // remove by index (safer than identity)
+          const later = new Date(largest.purchase_date)
+          later.setDate(later.getDate() + 7)
+          bills.push(
+            { ...largest, amount: half },
+            { ...largest, amount: half, purchase_date: later.toISOString().slice(0, 10) }
+          )
+        }
+      }
+
+      bills.sort((a, b) => a.purchase_date.localeCompare(b.purchase_date))
+      return bills
+    })
+  }
+
+  function undoStayPositivePlan() {
+    if (prevBillsRef.current) setUpcomingBills(prevBillsRef.current)
   }
 
   // accept optional id so “Use acc_X” buttons always work
@@ -72,6 +124,17 @@ export default function Dashboard() {
       : mood === 'rain'
       ? 'rgba(16,185,129,0.10)' // emerald light
       : 'rgba(16,185,129,0.14)' // slightly stronger emerald
+
+  // --- tiny AI coach tips (rule-based, fast, offline) ---
+  const coachTips = useMemo(() => {
+    return cashCoachAI({
+      forecast,
+      // Pass in what you have locally. If you later return full purchases from the API,
+      // pass them here for even smarter tips.
+      purchases: upcomingBills,
+      summary,
+    })
+  }, [forecast, upcomingBills, summary])
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-white to-emerald-50/30">
@@ -170,6 +233,11 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* --- Cash Coach (AI) --- */}
+        {summary && coachTips.length > 0 && (
+          <CoachCard tips={coachTips} onApplyPlan={applyStayPositivePlan} onUndo={undoStayPositivePlan} />
+        )}
+
         {error && (
           <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
             ⚠️ {error}
@@ -223,7 +291,24 @@ export default function Dashboard() {
 
           {upcomingBills.length > 0 && (
             <Card className="lg:col-span-3 animate-[fadeIn_.4s_.1s_both]">
-              <h2 className="text-xl font-semibold">Upcoming Bills</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold">Upcoming Bills</h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={applyStayPositivePlan}
+                    className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-emerald-700"
+                  >
+                    Stay Positive Plan
+                  </button>
+                  <button
+                    onClick={undoStayPositivePlan}
+                    className="rounded-xl bg-white px-3 py-1.5 text-xs font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+                  >
+                    Undo
+                  </button>
+                </div>
+              </div>
+
               <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
                 <table className="min-w-full text-base">
                   <thead className="bg-emerald-50/50 text-slate-600">
@@ -309,11 +394,11 @@ function cashWeather(summary: any) {
   return 'rainbow'
 }
 
-/* ---------- Empty state (now with THREE demo accounts) ---------- */
+/* ---------- Empty state (three demo accounts) ---------- */
 function EmptyState({ onPick }: { onPick: (id: string) => void }) {
   return (
     <section className="mx-auto mt-24 max-w-3xl rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm animate-[fadeIn_.4s_ease-out]">
-      <p className="text-base sm:text-lg uppercase tracking-[0.2em] text-emerald-700/90">Welcome</p>
+      <p className="text-base sm:text-lg uppercase tracking-[0.2em] text-emerald-700/90">WELCOME</p>
       <h2 className="mt-3 text-4xl sm:text-5xl font-semibold leading-tight">
         Check your cash flow for the month
       </h2>
@@ -340,6 +425,163 @@ function EmptyState({ onPick }: { onPick: (id: string) => void }) {
           Use acc_3
         </button>
       </div>
+    </section>
+  )
+}
+
+/* ---------- Cash Coach (AI) ---------- */
+type CoachTip = {
+  title: string
+  detail: string
+  impact?: string
+  confidence: number // 0–1
+  action?: 'apply-plan' | 'none'
+}
+
+function cashCoachAI({
+  forecast,
+  purchases,
+  summary
+}: {
+  forecast: { date: string; balance: number }[]
+  purchases: { amount: number; description: string; isBill?: boolean; type?: 'income'|'expense'; purchase_date: string }[]
+  summary: { start: number; inflows: number; outflows: number; end: number } | null
+}): CoachTip[] {
+  if (!summary || forecast.length === 0) return []
+
+  const minBal = Math.min(...forecast.map(f => +f.balance || 0))
+  const idxToNeg = forecast.findIndex(f => (+f.balance || 0) < 0)
+  const daysToZero = idxToNeg === -1 ? Infinity : idxToNeg
+
+  const spendByDesc = new Map<string, number>()
+  const spendByCat = new Map<string, number>()
+  const catOf = (d: string) => {
+    const x = d.toLowerCase()
+    if (x.includes('netflix') || x.includes('spotify') || x.includes('subscription')) return 'Subscriptions'
+    if (x.includes('uber') || x.includes('bus') || x.includes('gas')) return 'Transport'
+    if (x.includes('grocery') || x.includes('market')) return 'Groceries'
+    if (x.includes('rent')) return 'Housing'
+    if (x.includes('util')) return 'Utilities'
+    if (x.includes('coffee') || x.includes('restaurant') || x.includes('dining') || x.includes('fast')) return 'Dining'
+    return 'Other'
+  }
+
+  for (const p of purchases) {
+    if (p.type === 'expense' || !p.type) {
+      spendByDesc.set(p.description, (spendByDesc.get(p.description) || 0) + p.amount)
+      const c = catOf(p.description)
+      spendByCat.set(c, (spendByCat.get(c) || 0) + p.amount)
+    }
+  }
+
+  const tips: CoachTip[] = []
+
+  if (daysToZero !== Infinity && daysToZero <= 14) {
+    tips.push({
+      title: `Risk of negative balance in ${daysToZero} day${daysToZero === 1 ? '' : 's'}`,
+      detail: `Your forecast dips below $0 soon (min ${money(minBal)}). Try delaying the next bill and splitting your largest bill.`,
+      impact: `Raises near-term cushion via deferral & split`,
+      confidence: 0.9,
+      action: 'apply-plan',
+    })
+  }
+
+  const likelySubs = [...spendByDesc.entries()]
+    .filter(([d]) => /netflix|spotify|hulu|prime|subscription/i.test(d))
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2)
+
+  for (const [desc, amt] of likelySubs) {
+    tips.push({
+      title: `Review subscription: ${desc}`,
+      detail: `Recurring charge detected. Pausing or downgrading ${desc} could free up ${money(amt)} this month.`,
+      impact: `+${money(amt)} cushion`,
+      confidence: 0.75,
+      action: 'none',
+    })
+  }
+
+  const worstCat = [...spendByCat.entries()].sort((a, b) => b[1] - a[1])[0]
+  if (worstCat) {
+    const [cat, amt] = worstCat
+    if (cat === 'Dining' || cat === 'Other') {
+      const suggestedCut = Math.round(amt * 0.2 / 5) * 5 // ~20% rounded to $5
+      if (suggestedCut >= 10) {
+        tips.push({
+          title: `Trim ${cat} by ${money(suggestedCut)} this month`,
+          detail: `Set a weekly cap and auto-move leftover cash to savings.`,
+          impact: `Projected end +${money(suggestedCut)}`,
+          confidence: 0.65,
+          action: 'none',
+        })
+      }
+    }
+  }
+
+  if (summary.end - summary.start >= 500) {
+    const safeSave = Math.min(150, Math.floor((summary.end - summary.start) * 0.25 / 25) * 25)
+    if (safeSave >= 50) {
+      tips.push({
+        title: `Auto-save ${money(safeSave)} now`,
+        detail: `You’re on track to grow cash this month. Lock in ${money(safeSave)} to a rainy-day fund.`,
+        impact: `Builds emergency cushion`,
+        confidence: 0.7,
+        action: 'none',
+      })
+    }
+  }
+
+  return tips.sort((a, b) => b.confidence - a.confidence).slice(0, 3)
+}
+
+function CoachCard({
+  tips,
+  onApplyPlan,
+  onUndo,
+}: {
+  tips: CoachTip[]
+  onApplyPlan?: () => void
+  onUndo?: () => void
+}) {
+  if (!tips || tips.length === 0) return null
+  return (
+    <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-emerald-100 animate-[fadeIn_.4s_ease]">
+      <div className="mb-3 flex items-center gap-2">
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white text-xs">AI</span>
+        <h2 className="text-xl font-semibold">Cash Coach</h2>
+      </div>
+      <ul className="space-y-3">
+        {tips.map((t, i) => (
+          <li key={i} className="rounded-xl border border-emerald-100 p-3">
+            <div className="flex items-center justify-between">
+              <p className="font-medium">{t.title}</p>
+              <span className="text-xs text-slate-500">conf {Math.round(t.confidence * 100)}%</span>
+            </div>
+            <p className="mt-1 text-slate-600">{t.detail}</p>
+            <div className="mt-2 flex items-center justify-between">
+              <span className="text-emerald-700 text-sm">{t.impact}</span>
+              <div className="flex gap-2">
+                {t.action === 'apply-plan' && onApplyPlan && (
+                  <button
+                    onClick={onApplyPlan}
+                    className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+                  >
+                    Apply plan
+                  </button>
+                )}
+                {onUndo && (
+                  <button
+                    onClick={onUndo}
+                    className="rounded-lg bg-white px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+                  >
+                    Undo
+                  </button>
+                )}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }
